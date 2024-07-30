@@ -93,6 +93,54 @@ contract StakingNFTTest is Test {
     }
 
 
+    function testUnstakeNFT() public {
+    // Mint a new NFT to the user
+    nftContract.safeMint(user);
+
+    // Simulate user context
+    vm.startPrank(user);
+
+    // Approve the staking contract to transfer user's NFT
+    nftContract.approve(address(nftStaking), 0);
+
+    // Stake the NFT
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 0;
+    nftStaking.stake(tokenIds);
+
+    // Unstake the NFT
+    nftStaking.unstake(tokenIds);
+
+    // Stop user context
+    vm.stopPrank();
+
+    // Verify the NFT is in unbonding state
+    (address owner, uint256 tokenId, uint256 stakedFromBlock, uint256 rewardDebt) = nftStaking.stakedNFTs(0);
+    assertEq(owner, user);
+    assertEq(nftStaking.unbondingStartBlock(0), block.number);
+
+    // Fast forward time to after the unbonding period
+    vm.roll(block.number + unbondingPeriod);
+
+    // Simulate user context again for withdrawal
+    vm.startPrank(user);
+
+    // Withdraw the NFT
+    nftStaking.withdraw(tokenIds);
+
+    // Stop user context
+    vm.stopPrank();
+
+    // Verify the NFT is returned to the user
+    assertEq(nftContract.ownerOf(0), user);
+    // Verify the unbondingStartBlock is reset
+    assertEq(nftStaking.unbondingStartBlock(0), 0);
+}
+
+
+
+
+
 }
 
   
