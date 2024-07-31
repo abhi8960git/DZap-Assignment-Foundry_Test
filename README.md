@@ -1,4 +1,5 @@
-### Requirements
+### Project Description
+
 1. **Staking Functionality**:
 - Users can stake one or more multiple NFTs.
 - For each staked NFT, the user receives X reward tokens per block.
