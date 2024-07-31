@@ -67,8 +67,7 @@ contract StakingNFTTest is Test {
         assertEq(nftStaking.rewardClaimDelay(), rewardClaimDelay);
     }
 
-
-        function testStakeNFT() public {
+    function testStakeNFT() public {
         // Mint a new token to the user
         nftContract.safeMint(user);
 
@@ -85,62 +84,154 @@ contract StakingNFTTest is Test {
 
         // Stop user context
         vm.stopPrank();
+        console.log(user);
 
         // Verify the NFT is staked
         assertEq(nftContract.ownerOf(0), address(nftStaking));
-        (address owner,,,) = nftStaking.stakedNFTs(0);
+        (address owner, , , ) = nftStaking.stakedNFTs(0);
         assertEq(owner, user);
     }
 
-
     function testUnstakeNFT() public {
-    // Mint a new NFT to the user
-    nftContract.safeMint(user);
+        // Mint a new NFT to the user
+        nftContract.safeMint(user);
 
-    // Simulate user context
-    vm.startPrank(user);
+        // Simulate user context
+        vm.startPrank(user);
 
-    // Approve the staking contract to transfer user's NFT
-    nftContract.approve(address(nftStaking), 0);
+        // Approve the staking contract to transfer user's NFT
+        nftContract.approve(address(nftStaking), 0);
 
-    // Stake the NFT
-    uint256[] memory tokenIds = new uint256[](1);
-    tokenIds[0] = 0;
-    nftStaking.stake(tokenIds);
+        // Stake the NFT
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 0;
+        nftStaking.stake(tokenIds);
 
-    // Unstake the NFT
-    nftStaking.unstake(tokenIds);
+        // Unstake the NFT
+        nftStaking.unstake(tokenIds);
 
-    // Stop user context
-    vm.stopPrank();
+        // Stop user context
+        vm.stopPrank();
 
-    // Verify the NFT is in unbonding state
-    (address owner, uint256 tokenId, uint256 stakedFromBlock, uint256 rewardDebt) = nftStaking.stakedNFTs(0);
-    assertEq(owner, user);
-    assertEq(nftStaking.unbondingStartBlock(0), block.number);
+        // Verify the NFT is in unbonding state
+        (
+            address owner,
+            uint256 tokenId,
+            uint256 stakedFromBlock,
+            uint256 rewardDebt
+        ) = nftStaking.stakedNFTs(0);
+        assertEq(owner, user);
+        assertEq(nftStaking.unbondingStartBlock(0), block.number);
 
-    // Fast forward time to after the unbonding period
-    vm.roll(block.number + unbondingPeriod);
+        // Fast forward time to after the unbonding period
+        vm.roll(block.number + unbondingPeriod);
 
-    // Simulate user context again for withdrawal
-    vm.startPrank(user);
+        // Simulate user context again for withdrawal
+        vm.startPrank(user);
 
-    // Withdraw the NFT
-    nftStaking.withdraw(tokenIds);
+        // Withdraw the NFT
+        nftStaking.withdraw(tokenIds);
 
-    // Stop user context
-    vm.stopPrank();
+        // Stop user context
+        vm.stopPrank();
 
-    // Verify the NFT is returned to the user
-    assertEq(nftContract.ownerOf(0), user);
-    // Verify the unbondingStartBlock is reset
-    assertEq(nftStaking.unbondingStartBlock(0), 0);
+        // Verify the NFT is returned to the user
+        assertEq(nftContract.ownerOf(0), user);
+        // Verify the unbondingStartBlock is reset
+        assertEq(nftStaking.unbondingStartBlock(0), 0);
+    }
+
+    function testClaimRewardsDuringStaking() public {
+        // Mint a new NFT to the user
+        nftContract.safeMint(user);
+
+        // Simulate user context
+        vm.startPrank(user);
+
+        // Approve the staking contract to transfer user's NFT
+        nftContract.approve(address(nftStaking), 0);
+
+        // Stake the NFT
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 0;
+        nftStaking.stake(tokenIds);
+
+        // Stop user context
+        vm.stopPrank();
+
+        // Fast forward time to accumulate rewards and pass the reward claim delay
+        uint256 rewardDuration = 60; // Number of blocks to simulate reward accumulation
+        uint256 totalDuration = rewardDuration + rewardClaimDelay; // Include reward claim delay period
+        vm.roll(block.number + totalDuration);
+
+        // Mint reward tokens to the staking contract
+        uint256 mintAmount = 1000 * 10 ** 18;
+        rewardToken.mint(address(nftStaking), mintAmount);
+
+        // Simulate user context again for claiming rewards
+        vm.startPrank(user);
+
+        // Claim rewards
+        nftStaking.claimRewards();
+
+        // Stop user context
+        vm.stopPrank();
+
+        // Calculate the expected rewards
+        uint256 expectedRewards = totalDuration * rewardRate; // Calculate expected rewards based on reward rate and duration
+
+        // Log expected and actual rewards for debugging
+        console.log("Expected Rewards:", expectedRewards);
+        console.log("Actual Rewards:", rewardToken.balanceOf(user));
+
+        // Verify the rewards were claimed correctly
+        assertEq(rewardToken.balanceOf(user), expectedRewards);
+    }
+
+    function testUpdateRewardRate() public {
+        // Set a new reward rate
+        uint256 newRewardRate = 2e18; // 2 tokens per block
+        nftStaking.updateRewardRate(newRewardRate);
+
+        // Verify the reward rate is updated
+        assertEq(nftStaking.rewardRate(), newRewardRate);
+    }
+
+    function testUpdateUnbondingPeriod() public {
+        // Set a new unbonding period
+        uint256 newUnbondingPeriod = 200; // 200 blocks
+        nftStaking.updateUnbondingPeriod(newUnbondingPeriod);
+
+        // Verify the unbonding period is updated
+        assertEq(nftStaking.unbondingPeriod(), newUnbondingPeriod);
+    }
+
+    function testUpdateRewardClaimDelay() public {
+        // Set a new reward claim delay period
+        uint256 newRewardClaimDelay = 100; // 100 blocks
+        nftStaking.updateRewardClaimDelay(newRewardClaimDelay);
+
+        // Verify the reward claim delay is updated
+        assertEq(nftStaking.rewardClaimDelay(), newRewardClaimDelay);
+    }
+
+    // function testPauseAndUnpause() public {
+    //     // Pause the contract
+    //     nftStaking.pause();
+
+    //     // Verify the contract is paused
+    //     (bool success, ) = address(nftStaking).call(
+    //         abi.encodeWithSignature("stake(uint256[])")
+    //     );
+    //     assertEq(success, false);
+
+    //     // Unpause the contract
+    //     nftStaking.unpause();
+
+    //     // Verify the contract is unpaused
+    //     (success, ) = address(nftStaking).call(
+    //         abi.encodeWithSignature("stake(uint256[])")
+    //     );
+    //     assertEq(success, true);
+    // }
 }
-
-
-
-
-
-}
-
-  
